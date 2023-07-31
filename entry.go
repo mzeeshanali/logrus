@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -228,7 +229,7 @@ func (entry *Entry) log(level Level, msg string) {
 	}
 
 	newEntry.Level = level
-	newEntry.Message = msg
+	newEntry.Message = sanitize(msg)
 
 	newEntry.Logger.mu.Lock()
 	reportCaller := newEntry.Logger.ReportCaller
@@ -259,6 +260,30 @@ func (entry *Entry) log(level Level, msg string) {
 	if level <= PanicLevel {
 		panic(newEntry)
 	}
+}
+
+func sanitize(data string) string {
+	// Regular expression for email pattern
+	emailPattern := `\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`
+
+	// Compile the regular expression
+	regex := regexp.MustCompile(emailPattern)
+
+	// Replace email addresses with asterisks in the input string
+	i := regex.FindStringIndex(data)
+
+	if len(i) > 0 {
+		return redact(data, i[0], i[1])
+	}
+
+	return data
+}
+
+func redact(s string, start, end int) string {
+	if len(s) < 5 {
+		return strings.Repeat("*", 5)
+	}
+	return s[:start+1] + strings.Repeat("*", 5) + s[end-2:]
 }
 
 func (entry *Entry) getBufferPool() (pool BufferPool) {
